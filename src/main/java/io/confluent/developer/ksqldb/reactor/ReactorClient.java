@@ -1,6 +1,8 @@
 package io.confluent.developer.ksqldb.reactor;
 
 import org.reactivestreams.Publisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.List;
@@ -16,15 +18,17 @@ import io.confluent.ksql.api.client.KsqlObject;
 import io.confluent.ksql.api.client.QueryInfo;
 import io.confluent.ksql.api.client.Row;
 import io.confluent.ksql.api.client.StreamInfo;
-import io.confluent.ksql.api.client.StreamedQueryResult;
 import io.confluent.ksql.api.client.TableInfo;
 import io.confluent.ksql.api.client.TopicInfo;
-import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-@Slf4j
+import static reactor.core.publisher.Mono.fromFuture;
+
+
 public class ReactorClient {
+
+  final Logger log = LoggerFactory.getLogger(ReactorClient.class);
 
   private final Client ksqlDbClient;
 
@@ -41,7 +45,7 @@ public class ReactorClient {
 
   Mono<ExecuteStatementResult> executeStatement(String sql, Map<String, Object> properties) {
     final CompletableFuture<ExecuteStatementResult> future = ksqlDbClient.executeStatement(sql, properties);
-    return Mono.fromFuture(future);
+    return fromFuture(() -> future);
   }
 
   Mono<ExecuteStatementResult> executeStatement(String sql) {
@@ -50,16 +54,16 @@ public class ReactorClient {
 
   Flux<InsertAck> streamInserts(String streamName, Publisher<KsqlObject> insertsPublisher) {
     final CompletableFuture<AcksPublisher> future = this.ksqlDbClient.streamInserts(streamName, insertsPublisher);
-    return Mono.fromFuture(future).flatMapMany(acksPublisher -> acksPublisher);
+    return fromFuture(() -> future)
+        .flatMapMany(acksPublisher -> acksPublisher);
   }
 
   Flux<Row> streamQuery(String sql, Map<String, Object> properties) {
-    final CompletableFuture<StreamedQueryResult> future = this.ksqlDbClient.streamQuery(sql, properties);
-
-    return Mono.fromFuture(future).flatMapMany(streamedQueryResult -> {
-      log.info("Result column names: {}", streamedQueryResult.columnNames());
-      return streamedQueryResult;
-    });
+    return fromFuture(() -> this.ksqlDbClient.streamQuery(sql, properties))
+        .flatMapMany(streamedQueryResult -> {
+          log.info("Result column names: {}", streamedQueryResult.columnNames());
+          return streamedQueryResult;
+        });
   }
 
   Flux<Row> streamQuery(String sql) {
@@ -67,38 +71,52 @@ public class ReactorClient {
   }
 
   Mono<List<Row>> executeQuery(String sql) {
-    final BatchedQueryResult queryResult = this.executeQuery(sql, Collections.emptyMap());
-    return Mono.fromFuture(queryResult);
+    return this.executeQuery(sql, Collections.emptyMap());
   }
 
-  BatchedQueryResult executeQuery(String sql, Map<String, Object> properties) {
-    return this.ksqlDbClient.executeQuery(sql, properties);
+  Mono<List<Row>> executeQuery(String sql, Map<String, Object> properties) {
+    final BatchedQueryResult queryResult = this.ksqlDbClient.executeQuery(sql, properties);
+    return fromFuture(() -> queryResult);
   }
 
   Mono<List<StreamInfo>> listStreams() {
-    return Mono.fromFuture(this.ksqlDbClient.listStreams());
+    return fromFuture(this.ksqlDbClient::listStreams);
   }
 
   /**
    * Returns the list of ksqlDB tables from the ksqlDB server's metastore
    */
   Mono<List<TableInfo>> listTables() {
-    return Mono.fromFuture(this.ksqlDbClient.listTables());
+    return fromFuture(this.ksqlDbClient::listTables);
   }
 
   /**
    * Returns the list of Kafka topics available for use with ksqlDB.
    */
   Mono<List<TopicInfo>> listTopics() {
-    return Mono.fromFuture(this.ksqlDbClient.listTopics());
+    return fromFuture(this.ksqlDbClient::listTopics);
   }
 
   /**
    * Returns the list of queries currently running on the ksqlDB server.
    */
   Mono<List<QueryInfo>> listQueries() {
-    return Mono.fromFuture(this.ksqlDbClient.listQueries());
+    return fromFuture(this.ksqlDbClient::listQueries);
   }
 
 
+  /**
+   * Inserts a row into a ksqlDB stream.
+   *
+   * @param streamName name of the target stream
+   * @param row        the row to insert. Keys are column names and values are column values.
+   * @return a Mono that completes once the server response is received
+   */
+  Mono<Void> insertInto(String streamName, KsqlObject row) {
+    final CompletableFuture<Void> future = this.ksqlDbClient.insertInto(streamName, row);
+    final Mono<Void> voidMono = fromFuture(() -> future);
+    return Mono.defer(() -> voidMono)
+        .doOnError(throwable -> log.error("Insert failed", throwable));
+
+  }
 }

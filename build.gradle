@@ -7,13 +7,13 @@ plugins {
 
 dependencyManagement {
   imports {
-    mavenBom "io.projectreactor:reactor-bom:Bismuth-RELEASE"
+    mavenBom "io.projectreactor:reactor-bom:Dysprosium-SR12"
   }
 }
 
 repositories {
-
   jcenter()
+  maven { url 'https://jitpack.io' }
   maven() {
     url "https://ksqldb-maven.s3.amazonaws.com/maven/"
   }
@@ -41,14 +41,23 @@ dependencies {
   }
   implementation 'io.projectreactor:reactor-core'
   implementation 'ch.qos.logback:logback-classic:1.2.3'
-  compileOnly 'org.projectlombok:lombok:1.18.8'
+
+  implementation 'org.projectlombok:lombok:1.18.8'
   annotationProcessor 'org.projectlombok:lombok:1.18.8'
+  testAnnotationProcessor 'org.projectlombok:lombok:1.18.8'
 
   // Use JUnit Jupiter API for testing.
   testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.2'
 
   // Use JUnit Jupiter Engine for testing.
   testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.6.2'
+
+  implementation platform('org.testcontainers:testcontainers-bom:1.14.3') //import bom
+  testImplementation('org.testcontainers:kafka') //no version specified
+  //testImplementation 'com.github.gAmUssA:testcontainers-java-module-confluent-platform:master-SNAPSHOT'
+  testImplementation 'com.github.gAmUssA:testcontainers-java-module-confluent-platform:1da40973a1'
+
+  testImplementation 'org.assertj:assertj-core:3.16.1'
 }
 
 application {
@@ -59,4 +68,12 @@ application {
 test {
   // Use junit platform for unit tests
   useJUnitPlatform()
+}
+
+tasks.withType(Test) {
+  testLogging {
+    outputs.upToDateWhen { false }
+    events 'standard_out'
+    exceptionFormat = "full"
+  }
 }
