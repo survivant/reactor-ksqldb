@@ -1,33 +1,33 @@
 package io.confluent.developer.ksqldb.reactor;
 
 
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
 
-import java.util.Arrays;
+import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 import io.confluent.ksql.api.client.Client;
 import io.confluent.ksql.api.client.ClientOptions;
 import io.confluent.ksql.api.client.ExecuteStatementResult;
 import io.confluent.ksql.api.client.InsertAck;
 import io.confluent.ksql.api.client.KsqlObject;
+import io.confluent.ksql.api.client.Row;
 import io.confluent.ksql.api.client.StreamInfo;
 import io.confluent.ksql.api.client.exception.KsqlClientException;
 import io.confluent.testcontainers.KsqlDbServerContainer;
 import io.confluent.testcontainers.SchemaRegistryContainer;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
+import reactor.util.retry.Retry;
 
+import static java.util.Arrays.*;
 import static java.util.Map.of;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static reactor.core.publisher.Flux.fromIterable;
 
 @Slf4j(topic = "ReactorClient for ksqlDb")
 public class ReactorClientTest {
@@ -83,14 +83,12 @@ public class ReactorClientTest {
             .then(reactorClient.listStreams())
             .block();
 
-    if (blockingResponse != null) {
-      fromIterable(blockingResponse)
-          .take(1)
-          .subscribe(info -> {
-            assertThat(info.getTopic(), equalTo(SHIPMENTS_TOPIC_NAME));
-            assertThat(info.getFormat(), equalTo("JSON"));
-          });
-    }
+    Assertions.assertThat(blockingResponse)
+        .isNotNull()
+        .hasSize(1)
+        .first()
+        .extracting(StreamInfo::getTopic, StreamInfo::getFormat)
+        .isEqualTo(asList(SHIPMENTS_TOPIC_NAME, "JSON"));
   }
 
   @Test
@@ -104,10 +102,38 @@ public class ReactorClientTest {
             .streamInserts(SHIPMENTS_TOPIC_NAME, cheesyData())
             .take(4)
             .blockLast();
-    if (insertAck != null) {
-      // four inserts, sequence starts from 0
-      assertThat(insertAck.seqNum(), equalTo(3L));
-    }
+    Assertions.assertThat(insertAck)
+        .isNotNull()
+        .extracting(InsertAck::seqNum)
+        .isEqualTo(3L);
+  }
+
+  @Test
+  public void shouldInsertAfterCreateStatement() {
+    // Mono ~= Supplier<CompletableFuture<T>>
+
+    final List<Row> list = reactorClient
+        .insertInto(
+            SHIPMENTS_TOPIC_NAME,
+            new KsqlObject()
+                .put("shipmentId", 42)
+                .put("cheese", "smile")
+                .put("shipmentTimestamp", Instant.now().toString())
+        )
+        .log()
+        .retryWhen(
+            Retry.from(f -> f.take(1)
+                .delayUntil(signal -> reactorClient
+                    .executeStatement(String.format(CREATE_STREAM_STATEMENT, SHIPMENTS_TOPIC_NAME)))))
+        .log("beforeBlock")
+        .then(reactorClient.executeQueryFromBeginning("SELECT * FROM cheese_shipments EMIT CHANGES LIMIT 1;"))
+        .block();
+
+    Assertions.assertThat(list)
+        .isNotNull()
+        .first()
+        .extracting(it -> it.getInteger("SHIPMENTID"))
+        .isEqualTo(42);
   }
 
   @Test
@@ -123,24 +149,26 @@ public class ReactorClientTest {
             .streamInserts(SHIPMENTS_TOPIC_NAME, cheesyData())
             .take(4)
             .blockLast();
-    if (insertAck != null) {
-      // four inserts, sequence starts from 0
-      assertThat(insertAck.seqNum(), equalTo(3L));
-    }
+    Assertions.assertThat(insertAck)
+        .isNotNull()
+        .extracting(InsertAck::seqNum)
+        // four inserts, sequence starts from 0
+        .isEqualTo(3L);
 
     // doing select 
-    String pushQuery = "SELECT * FROM %s EMIT CHANGES;";
-    final Map<String, Object> properties = of("auto.offset.reset", "earliest");
+    String pushQuery = "SELECT * FROM %s EMIT CHANGES LIMIT 1;";
+        
+    var row = reactorClient
+        .streamQueryFromBeginning(String.format(pushQuery, SHIPMENTS_TOPIC_NAME))
+        .blockFirst();
 
-    reactorClient
-        .streamQuery(String.format(pushQuery, SHIPMENTS_TOPIC_NAME), properties)
-        .take(1)
-        .subscribe(row -> {
-          log.debug("Row {}:", row);
-          final List<String> list = Arrays.asList("shipmentId", "cheese", "shipmentTimestamp");
-          assertThat(row.columnNames(), equalTo(list));
-          assertThat(row.getInteger("shipmentId"), equalTo(42));
-        });
+    log.debug("Row {}:", row);
+    final List<String> columns = asList("SHIPMENTID", "CHEESE", "SHIPMENTTIMESTAMP");
+
+    Assertions.assertThat(row)
+        .isNotNull()
+        .extracting(Row::columnNames, it -> it.getInteger("SHIPMENTID"))
+        .isEqualTo(asList(columns, 42));
   }
 
   @Test
@@ -150,11 +178,11 @@ public class ReactorClientTest {
                                              "cheese", "american",
                                              "shipmentTimestamp", "june 12th 2019"));
 
-    assertThatExceptionOfType(KsqlClientException.class).isThrownBy(() -> reactorClient
-        .executeStatement(String.format(CREATE_STREAM_STATEMENT, SHIPMENTS_TOPIC_NAME))
-        .then(reactorClient.insertInto(SHIPMENTS_TOPIC_NAME, row))
-        .onErrorStop()
-        .block());
+    assertThatExceptionOfType(KsqlClientException.class)
+        .isThrownBy(() -> reactorClient.executeStatement(String.format(CREATE_STREAM_STATEMENT, SHIPMENTS_TOPIC_NAME))
+            .then(reactorClient.insertInto(SHIPMENTS_TOPIC_NAME, row))
+            .onErrorStop()
+            .block());
   }
 
   protected Flux<KsqlObject> cheesyData() {

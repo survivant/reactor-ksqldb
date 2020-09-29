@@ -7,10 +7,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
-import io.confluent.ksql.api.client.AcksPublisher;
-import io.confluent.ksql.api.client.BatchedQueryResult;
 import io.confluent.ksql.api.client.Client;
 import io.confluent.ksql.api.client.ExecuteStatementResult;
 import io.confluent.ksql.api.client.InsertAck;
@@ -23,6 +20,7 @@ import io.confluent.ksql.api.client.TopicInfo;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import static java.util.Map.of;
 import static reactor.core.publisher.Mono.fromFuture;
 
 
@@ -44,8 +42,7 @@ public class ReactorClient {
   }
 
   Mono<ExecuteStatementResult> executeStatement(String sql, Map<String, Object> properties) {
-    final CompletableFuture<ExecuteStatementResult> future = ksqlDbClient.executeStatement(sql, properties);
-    return fromFuture(() -> future);
+    return fromFuture(() -> ksqlDbClient.executeStatement(sql, properties));
   }
 
   Mono<ExecuteStatementResult> executeStatement(String sql) {
@@ -53,8 +50,7 @@ public class ReactorClient {
   }
 
   Flux<InsertAck> streamInserts(String streamName, Publisher<KsqlObject> insertsPublisher) {
-    final CompletableFuture<AcksPublisher> future = this.ksqlDbClient.streamInserts(streamName, insertsPublisher);
-    return fromFuture(() -> future)
+    return fromFuture(() -> this.ksqlDbClient.streamInserts(streamName, insertsPublisher))
         .flatMapMany(acksPublisher -> acksPublisher);
   }
 
@@ -66,6 +62,10 @@ public class ReactorClient {
         });
   }
 
+  Flux<Row> streamQueryFromBeginning(String sql) {
+    return this.streamQuery(sql, of("auto.offset.reset", "earliest"));
+  }
+
   Flux<Row> streamQuery(String sql) {
     return this.streamQuery(sql, Collections.emptyMap());
   }
@@ -74,10 +74,14 @@ public class ReactorClient {
     return this.executeQuery(sql, Collections.emptyMap());
   }
 
-  Mono<List<Row>> executeQuery(String sql, Map<String, Object> properties) {
-    final BatchedQueryResult queryResult = this.ksqlDbClient.executeQuery(sql, properties);
-    return fromFuture(() -> queryResult);
+  Mono<List<Row>> executeQueryFromBeginning(String sql) {
+    return this.executeQuery(sql, of("auto.offset.reset", "earliest"));
   }
+
+  Mono<List<Row>> executeQuery(String sql, Map<String, Object> properties) {
+    return fromFuture(() -> this.ksqlDbClient.executeQuery(sql, properties));
+  }
+
 
   Mono<List<StreamInfo>> listStreams() {
     return fromFuture(this.ksqlDbClient::listStreams);
@@ -104,7 +108,6 @@ public class ReactorClient {
     return fromFuture(this.ksqlDbClient::listQueries);
   }
 
-
   /**
    * Inserts a row into a ksqlDB stream.
    *
@@ -113,10 +116,7 @@ public class ReactorClient {
    * @return a Mono that completes once the server response is received
    */
   Mono<Void> insertInto(String streamName, KsqlObject row) {
-    final CompletableFuture<Void> future = this.ksqlDbClient.insertInto(streamName, row);
-    final Mono<Void> voidMono = fromFuture(() -> future);
-    return Mono.defer(() -> voidMono)
+    return fromFuture(() -> this.ksqlDbClient.insertInto(streamName, row))
         .doOnError(throwable -> log.error("Insert failed", throwable));
-
   }
 }
