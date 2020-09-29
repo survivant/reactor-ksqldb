@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 import io.confluent.ksql.api.client.Client;
+import io.confluent.ksql.api.client.ClientOptions;
 import io.confluent.ksql.api.client.ExecuteStatementResult;
 import io.confluent.ksql.api.client.InsertAck;
 import io.confluent.ksql.api.client.KsqlObject;
@@ -39,6 +40,10 @@ public class ReactorClient {
    */
   static ReactorClient from(Client ksqlDbClient) {
     return new ReactorClient(ksqlDbClient);
+  }
+
+  static ReactorClient fromOptions(ClientOptions options) {
+    return new ReactorClient(Client.create(options));
   }
 
   Mono<ExecuteStatementResult> executeStatement(String sql, Map<String, Object> properties) {
