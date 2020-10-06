@@ -52,11 +52,10 @@ dependencies {
   // Use JUnit Jupiter Engine for testing.
   testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.6.2'
 
-  implementation platform('org.testcontainers:testcontainers-bom:1.15.0-rc2') //import bom
+  testImplementation platform('org.testcontainers:testcontainers-bom:1.15.0-rc2') //import bom
   testImplementation('org.testcontainers:kafka') //no version specified
-  //testImplementation 'com.github.gAmUssA:testcontainers-java-module-confluent-platform:master-SNAPSHOT'
-  testImplementation 'com.github.gAmUssA:testcontainers-java-module-confluent-platform:1da40973a1'
-
+  testImplementation 'com.github.gAmUssA:testcontainers-java-module-confluent-platform:master-SNAPSHOT'
+  
   testImplementation 'org.assertj:assertj-core:3.16.1'
 }
 
