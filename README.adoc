@@ -1,0 +1,60 @@
+= Project Reactor wrapper for Reactive ksqDB Java Client  
+Viktor Gamov <viktor@confluent.io>, © 2020 Confluent, Inc.
+:revdate: 2020-10-09 9:30:10 -0600
+:toc: auto
+:toc-placement: macro
+:toc-position: right
+:toc-title: Table of content
+:toclevels: 3
+:idprefix:
+:idseparator: -
+:sectanchors:
+:icons: font
+:source-highlighter: highlight.js
+:highlightjs-theme: idea
+:experimental:
+
+toc::[]
+
+== Setting context
+
+TBD - add YT versions
+
+== Getting binaries
+
+NOTE: While library is `0.1-SNAPSHOT` binaries hosted in jitpack
+
+[source, groovy]
+----
+project {
+    repositories {
+      jcenter()
+      // and other repositories
+    
+      // jitpack repo for github artifacts
+      maven { url 'https://jitpack.io' }
+    
+      // temp repositories for ksqlDB artifacts
+      maven { url "https://ksqldb-maven.s3.amazonaws.com/maven/" }
+      maven { url "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta200825192044/1/maven/" } 
+  }
+  
+  dependencies {
+      // ksqlDB Reactor Client
+      implementation 'com.github.gAmUssA:reactor-ksqldb:master-SNAPSHOT'
+
+      // exclude some logger lib
+      implementation("io.confluent.ksql:ksqldb-api-client:0.12.0") {
+        exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      }
+  }
+}
+----
+
+== License
+
+See LICENSE
+
+== Copyright
+
+Copyright (c) 2020 Viktor Gamov
