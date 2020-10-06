@@ -5,11 +5,10 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.lifecycle.Startables;
+import org.testcontainers.utility.DockerImageName;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -38,36 +37,21 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 @Slf4j(topic = "ReactorClient for ksqlDb")
 public class ReactorClientTest {
 
-  private static final KafkaContainer kafka = new KafkaContainer("5.5.1") {{
-    setNetworkAliases(Collections.singletonList("kafka"));
-    withReuse(true);
-    withNetwork(new Network() {
-      @Override
-      public String getId() {
-        return "reactor-ksqldb";
-      }
-
-      @Override
-      public void close() {
-
-      }
-
-      @Override
-      public Statement apply(Statement base, Description description) {
-        return base;
-      }
-    });
-  }};
+  private static final KafkaContainer
+      kafka =
+      new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:5.5.1")) {{
+        setNetworkAliases(Collections.singletonList("kafka"));
+        withReuse(true);
+        withNetwork(Network.newNetwork());
+      }};
 
   private static final SchemaRegistryContainer schemaRegistry = new SchemaRegistryContainer("5.5.1")
-      .withReuse(true)
       .withKafka(kafka);
 
-  private static final AbstractKsqlServerContainer ksqlServer = new KsqlDbServerContainer("0.11.0")
-      .withReuse(true)
+  private static final AbstractKsqlServerContainer ksqlServer = new KsqlDbServerContainer("0.12.0")
       .dependsOn(kafka)
       // uncomment to debug issues in ksqldb server
-//        .withLogConsumer(new Slf4jLogConsumer(log))
+//     .withLogConsumer(new Slf4jLogConsumer(log))
       .withKafka(kafka);
 
   private static ReactorClient reactorClient;
