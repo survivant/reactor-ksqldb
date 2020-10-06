@@ -38,28 +38,28 @@ public class ReactorClient {
   /**
    * Creates Reactor wrapper for ksqlDB Client
    */
-  static ReactorClient from(Client ksqlDbClient) {
+  public static ReactorClient from(Client ksqlDbClient) {
     return new ReactorClient(ksqlDbClient);
   }
 
-  static ReactorClient fromOptions(ClientOptions options) {
+  public static ReactorClient fromOptions(ClientOptions options) {
     return new ReactorClient(Client.create(options));
   }
 
-  Mono<ExecuteStatementResult> executeStatement(String sql, Map<String, Object> properties) {
+  public Mono<ExecuteStatementResult> executeStatement(String sql, Map<String, Object> properties) {
     return fromFuture(() -> ksqlDbClient.executeStatement(sql, properties));
   }
 
-  Mono<ExecuteStatementResult> executeStatement(String sql) {
+  public Mono<ExecuteStatementResult> executeStatement(String sql) {
     return this.executeStatement(sql, Collections.emptyMap());
   }
 
-  Flux<InsertAck> streamInserts(String streamName, Publisher<KsqlObject> insertsPublisher) {
+  public Flux<InsertAck> streamInserts(String streamName, Publisher<KsqlObject> insertsPublisher) {
     return fromFuture(() -> this.ksqlDbClient.streamInserts(streamName, insertsPublisher))
         .flatMapMany(acksPublisher -> acksPublisher);
   }
 
-  Flux<Row> streamQuery(String sql, Map<String, Object> properties) {
+  public Flux<Row> streamQuery(String sql, Map<String, Object> properties) {
     return fromFuture(() -> this.ksqlDbClient.streamQuery(sql, properties))
         .flatMapMany(streamedQueryResult -> {
           log.info("Result column names: {}", streamedQueryResult.columnNames());
@@ -67,49 +67,49 @@ public class ReactorClient {
         });
   }
 
-  Flux<Row> streamQueryFromBeginning(String sql) {
+  public Flux<Row> streamQueryFromBeginning(String sql) {
     return this.streamQuery(sql, of("auto.offset.reset", "earliest"));
   }
 
-  Flux<Row> streamQuery(String sql) {
+  public Flux<Row> streamQuery(String sql) {
     return this.streamQuery(sql, Collections.emptyMap());
   }
-
-  Mono<List<Row>> executeQuery(String sql) {
+  
+  public Mono<List<Row>> executeQuery(String sql) {
     return this.executeQuery(sql, Collections.emptyMap());
   }
 
-  Mono<List<Row>> executeQueryFromBeginning(String sql) {
+  public Mono<List<Row>> executeQueryFromBeginning(String sql) {
     return this.executeQuery(sql, of("auto.offset.reset", "earliest"));
   }
 
-  Mono<List<Row>> executeQuery(String sql, Map<String, Object> properties) {
+  public Mono<List<Row>> executeQuery(String sql, Map<String, Object> properties) {
     return fromFuture(() -> this.ksqlDbClient.executeQuery(sql, properties));
   }
 
 
-  Mono<List<StreamInfo>> listStreams() {
+  public Mono<List<StreamInfo>> listStreams() {
     return fromFuture(this.ksqlDbClient::listStreams);
   }
 
   /**
    * Returns the list of ksqlDB tables from the ksqlDB server's metastore
    */
-  Mono<List<TableInfo>> listTables() {
+  public Mono<List<TableInfo>> listTables() {
     return fromFuture(this.ksqlDbClient::listTables);
   }
 
   /**
    * Returns the list of Kafka topics available for use with ksqlDB.
    */
-  Mono<List<TopicInfo>> listTopics() {
+  public Mono<List<TopicInfo>> listTopics() {
     return fromFuture(this.ksqlDbClient::listTopics);
   }
 
   /**
    * Returns the list of queries currently running on the ksqlDB server.
    */
-  Mono<List<QueryInfo>> listQueries() {
+  public Mono<List<QueryInfo>> listQueries() {
     return fromFuture(this.ksqlDbClient::listQueries);
   }
 
@@ -120,7 +120,7 @@ public class ReactorClient {
    * @param row        the row to insert. Keys are column names and values are column values.
    * @return a Mono that completes once the server response is received
    */
-  Mono<Void> insertInto(String streamName, KsqlObject row) {
+  public Mono<Void> insertInto(String streamName, KsqlObject row) {
     return fromFuture(() -> this.ksqlDbClient.insertInto(streamName, row))
         .doOnError(throwable -> log.error("Insert failed", throwable));
   }
