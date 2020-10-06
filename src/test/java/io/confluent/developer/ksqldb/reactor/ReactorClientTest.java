@@ -5,11 +5,16 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
+import org.testcontainers.lifecycle.Startables;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 
 import io.confluent.ksql.api.client.Client;
 import io.confluent.ksql.api.client.ClientOptions;
@@ -21,21 +26,49 @@ import io.confluent.ksql.api.client.StreamInfo;
 import io.confluent.ksql.api.client.exception.KsqlClientException;
 import io.confluent.testcontainers.KsqlDbServerContainer;
 import io.confluent.testcontainers.SchemaRegistryContainer;
+import io.confluent.testcontainers.ksqldb.AbstractKsqlServerContainer;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.util.retry.Retry;
 
-import static java.util.Arrays.*;
+import static java.util.Arrays.asList;
 import static java.util.Map.of;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 @Slf4j(topic = "ReactorClient for ksqlDb")
 public class ReactorClientTest {
 
-  private static final KafkaContainer kafka = new KafkaContainer("5.5.1").withNetwork(Network.newNetwork());
-  private static final SchemaRegistryContainer schemaRegistry = new SchemaRegistryContainer("5.5.1");
+  private static final KafkaContainer kafka = new KafkaContainer("5.5.1") {{
+    setNetworkAliases(Collections.singletonList("kafka"));
+    withReuse(true);
+    withNetwork(new Network() {
+      @Override
+      public String getId() {
+        return "reactor-ksqldb";
+      }
 
-  private static final KsqlDbServerContainer ksqlServer = new KsqlDbServerContainer("0.11.0");
+      @Override
+      public void close() {
+
+      }
+
+      @Override
+      public Statement apply(Statement base, Description description) {
+        return base;
+      }
+    });
+  }};
+
+  private static final SchemaRegistryContainer schemaRegistry = new SchemaRegistryContainer("5.5.1")
+      .withReuse(true)
+      .withKafka(kafka);
+
+  private static final AbstractKsqlServerContainer ksqlServer = new KsqlDbServerContainer("0.11.0")
+      .withReuse(true)
+      .dependsOn(kafka)
+      // uncomment to debug issues in ksqldb server
+//        .withLogConsumer(new Slf4jLogConsumer(log))
+      .withKafka(kafka);
 
   private static ReactorClient reactorClient;
 
@@ -46,18 +79,14 @@ public class ReactorClientTest {
 
   @BeforeAll
   public static void setUpClass() {
-    // for ksql command topic 
+    schemaRegistry.setNetworkAliases(Collections.singletonList("schema-registry"));
+    ksqlServer.setNetworkAliases(Collections.singletonList("ksqldb"));
+    // for ksql command topic
     kafka.addEnv("KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR", "1");
     kafka.addEnv("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1");
     kafka.addEnv("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1");
-    kafka.start();
 
-    schemaRegistry.withKafka(kafka).start();
-
-    ksqlServer.withKafka(kafka)
-        // uncomment to debug issues in ksqldb server
-//        .withLogConsumer(new Slf4jLogConsumer(log))
-        .start();
+    Startables.deepStart(Stream.of(kafka, schemaRegistry, ksqlServer)).join();
 
     ClientOptions options = ClientOptions
         .create()
@@ -157,7 +186,7 @@ public class ReactorClientTest {
 
     // doing select 
     String pushQuery = "SELECT * FROM %s EMIT CHANGES LIMIT 1;";
-        
+
     var row = reactorClient
         .streamQueryFromBeginning(String.format(pushQuery, SHIPMENTS_TOPIC_NAME))
         .blockFirst();

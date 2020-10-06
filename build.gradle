@@ -2,7 +2,7 @@ plugins {
   id 'java'
   id 'application'
   id 'idea'
-  id "io.spring.dependency-management" version "1.0.7.RELEASE"
+  id "io.spring.dependency-management" version "1.0.10.RELEASE"
 }
 
 dependencyManagement {
@@ -18,7 +18,7 @@ repositories {
     url "https://ksqldb-maven.s3.amazonaws.com/maven/"
   }
   maven() {
-    url "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta200715032424/1/maven/"
+    url "https://jenkins-confluent-packages-beta-maven.s3.amazonaws.com/6.1.0-beta200825192044/1/maven/"
   }
 }
 
@@ -36,7 +36,7 @@ tasks.withType(Test) {
 
 dependencies {
 
-  implementation("io.confluent.ksql:ksqldb-api-client:0.11.0") {
+  implementation("io.confluent.ksql:ksqldb-api-client:0.12.0") {
     exclude group: 'org.slf4j', module: 'slf4j-log4j12'
   }
   implementation 'io.projectreactor:reactor-core'
@@ -52,7 +52,7 @@ dependencies {
   // Use JUnit Jupiter Engine for testing.
   testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.6.2'
 
-  implementation platform('org.testcontainers:testcontainers-bom:1.14.3') //import bom
+  implementation platform('org.testcontainers:testcontainers-bom:1.15.0-rc2') //import bom
   testImplementation('org.testcontainers:kafka') //no version specified
   //testImplementation 'com.github.gAmUssA:testcontainers-java-module-confluent-platform:master-SNAPSHOT'
   testImplementation 'com.github.gAmUssA:testcontainers-java-module-confluent-platform:1da40973a1'
