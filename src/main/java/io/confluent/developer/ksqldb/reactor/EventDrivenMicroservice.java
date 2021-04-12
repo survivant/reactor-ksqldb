@@ -7,6 +7,7 @@ import java.util.Map;
 
 import io.confluent.ksql.api.client.Client;
 import io.confluent.ksql.api.client.ClientOptions;
+import io.confluent.ksql.api.client.ExecuteStatementResult;
 import io.confluent.ksql.api.client.KsqlObject;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
@@ -29,25 +30,43 @@ public class EventDrivenMicroservice {
     // Create the rows to insert
     final Flux<KsqlObject> insertData = getInsertData();
 
+    log.info("CLEANUP PREVIOUS DATA");
+
+    // cleanup
+    reactorClient
+            .executeStatement("DROP TABLE IF EXISTS possible_anomalies;")
+            .block();
+
+    reactorClient
+        .executeStatement("DROP STREAM IF EXISTS transactions;")
+        .block();
+
+    log.info("CLEANUP DONE");
+
+    log.info("CREATE STREAM");
     // create stream
     reactorClient
         .executeStatement(CREATE_TRANSACTIONS_STREAM, properties)
         .then(reactorClient.executeStatement(CREATE_ANOMALIES_TABLE, properties))
         .subscribe();
 
+    log.info("INSERT TRANSACTION DATA");
+
     reactorClient
         .streamInserts("TRANSACTIONS", insertData)
         .subscribe(result -> log.info(result.toString()),
                    error -> log.error("Can't create stream", error));
 
+    log.info("KSQL Select");
     // push query example
     reactorClient
         .streamQuery(SELECT_POSSIBLE_ANOMALIES, properties)
         .buffer(10)
         .subscribe(row -> log.info("row= {}", row.size()),
                    error -> log.error("Push query request failed: " + error));
-    
-    
+
+    log.info("DONE");
+
   }
 
   private static Flux<KsqlObject> getInsertData() {

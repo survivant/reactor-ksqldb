@@ -1,4 +1,6 @@
-package io.confluent.developer.ksqldb.reactor;public class Queries {
+package io.confluent.developer.ksqldb.reactor;
+
+public class Queries {
 
   public static final String CREATE_ANOMALIES_TABLE = "CREATE TABLE possible_anomalies WITH ("
                                                       + "    kafka_topic = 'possible_anomalies',"
