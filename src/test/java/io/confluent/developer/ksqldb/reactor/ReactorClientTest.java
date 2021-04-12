@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
+import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.lifecycle.Startables;
 import org.testcontainers.utility.DockerImageName;
 
@@ -39,19 +40,19 @@ public class ReactorClientTest {
 
   private static final KafkaContainer
       kafka =
-      new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:5.5.1")) {{
+      new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:6.1.0")) {{
         setNetworkAliases(Collections.singletonList("kafka"));
         withReuse(true);
         withNetwork(Network.newNetwork());
       }};
 
-  private static final SchemaRegistryContainer schemaRegistry = new SchemaRegistryContainer("5.5.1")
+  private static final SchemaRegistryContainer schemaRegistry = new SchemaRegistryContainer("6.1.0")
       .withKafka(kafka);
 
-  private static final AbstractKsqlServerContainer ksqlServer = new KsqlDbServerContainer("0.12.0")
+  private static final AbstractKsqlServerContainer ksqlServer = new KsqlDbServerContainer("0.15.0")
       .dependsOn(kafka)
       // uncomment to debug issues in ksqldb server
-//     .withLogConsumer(new Slf4jLogConsumer(log))
+      //.withLogConsumer(new Slf4jLogConsumer(log))
       .withKafka(kafka);
 
   private static ReactorClient reactorClient;
